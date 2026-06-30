@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My To Do List</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="todo-app">
+    <h1>MY TO DO LIST</h1>
+
+    <form class="todo-form" id="todo-form">
+      <input
+        type="text"
+        id="todo-input"
+        placeholder="할일을 넣어주세요"
+        autocomplete="off"
+        aria-label="할 일 입력"
+      >
+      <button type="submit" id="submit-button">Save</button>
+    </form>
+
+    <section class="todo-stats" aria-label="할 일 통계">
+      <div>Todo Done : <span id="done-count">0</span></div>
+      <div>Todo On Progress : <span id="progress-count">0</span></div>
+    </section>
+
+    <ul class="todo-list" id="todo-list" aria-label="할 일 목록"></ul>
+  </main>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
