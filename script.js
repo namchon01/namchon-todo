@@ -1,31 +1,3 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
-import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-analytics.js";
-import {
-  getDatabase,
-  onValue,
-  push,
-  ref,
-  remove,
-  set,
-  update,
-} from "https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyDMEC38tesV0O1o08KRrhqrSUaNkE7srtM",
-  authDomain: "namchon-todo.firebaseapp.com",
-  projectId: "namchon-todo",
-  databaseURL: "https://namchon-todo-default-rtdb.firebaseio.com/",
-  storageBucket: "namchon-todo.firebasestorage.app",
-  messagingSenderId: "246525719965",
-  appId: "1:246525719965:web:9b43a75fc6ebd40b63ab74",
-  measurementId: "G-HH1GXRQ6BQ",
-};
-
-const app = initializeApp(firebaseConfig);
-getAnalytics(app);
-const database = getDatabase(app);
-const todosRef = ref(database, "todos");
-
 const form = document.querySelector("#todo-form");
 const input = document.querySelector("#todo-input");
 const submitButton = document.querySelector("#submit-button");
@@ -33,30 +5,12 @@ const todoList = document.querySelector("#todo-list");
 const doneCount = document.querySelector("#done-count");
 const progressCount = document.querySelector("#progress-count");
 
+const API_URL = "http://127.0.0.1:5000/todos";
+
 let todos = [];
 let editingId = null;
 
-onValue(
-  todosRef,
-  (snapshot) => {
-    const data = snapshot.val() || {};
-
-    todos = Object.entries(data)
-      .map(([id, todo]) => ({
-        id,
-        text: todo.text,
-        done: Boolean(todo.done),
-        createdAt: todo.createdAt || 0,
-      }))
-      .sort((a, b) => b.createdAt - a.createdAt);
-
-    renderTodos();
-  },
-  (error) => {
-    console.error(error);
-    alert("Firebase에서 할 일 목록을 불러오지 못했습니다.");
-  }
-);
+fetchTodos();
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -70,24 +24,24 @@ form.addEventListener("submit", async (event) => {
 
   try {
     if (editingId) {
-      await update(ref(database, `todos/${editingId}`), { text });
-      editingId = null;
-      submitButton.textContent = "Save";
+      await requestJson(`${API_URL}/${editingId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ text }),
+      });
+      clearEditingState();
     } else {
-      const newTodoRef = push(todosRef);
-
-      await set(newTodoRef, {
-        text,
-        done: false,
-        createdAt: Date.now(),
+      await requestJson(API_URL, {
+        method: "POST",
+        body: JSON.stringify({ text }),
       });
     }
 
     input.value = "";
     input.focus();
+    await fetchTodos();
   } catch (error) {
     console.error(error);
-    alert("Firebase에 할 일을 저장하지 못했습니다.");
+    alert(error.message || "할 일을 저장하지 못했습니다.");
   }
 });
 
@@ -103,14 +57,18 @@ todoList.addEventListener("click", async (event) => {
 
   if (button.classList.contains("delete-button")) {
     try {
-      await remove(ref(database, `todos/${id}`));
+      await requestJson(`${API_URL}/${id}`, {
+        method: "DELETE",
+      });
 
       if (editingId === id) {
         clearEditingState();
       }
+
+      await fetchTodos();
     } catch (error) {
       console.error(error);
-      alert("Firebase에서 할 일을 삭제하지 못했습니다.");
+      alert(error.message || "할 일을 삭제하지 못했습니다.");
     }
   }
 
@@ -130,14 +88,64 @@ todoList.addEventListener("click", async (event) => {
 
     if (todo) {
       try {
-        await update(ref(database, `todos/${id}`), { done: !todo.done });
+        await requestJson(`${API_URL}/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ done: !todo.done }),
+        });
+        await fetchTodos();
       } catch (error) {
         console.error(error);
-        alert("Firebase에 완료 상태를 저장하지 못했습니다.");
+        alert(error.message || "완료 상태를 저장하지 못했습니다.");
       }
     }
   }
 });
+
+async function fetchTodos() {
+  try {
+    const data = await requestJson(API_URL);
+
+    todos = data
+      .map(normalizeTodo)
+      .sort((a, b) => b.createdAt - a.createdAt);
+
+    renderTodos();
+  } catch (error) {
+    console.error(error);
+    alert(error.message || "할 일 목록을 불러오지 못했습니다.");
+  }
+}
+
+async function requestJson(url, options = {}) {
+  const headers = { ...options.headers };
+
+  if (options.body) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  const response = await fetch(url, { ...options, headers });
+
+  if (response.status === 204) {
+    return null;
+  }
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.error || "서버 요청에 실패했습니다.");
+  }
+
+  return data;
+}
+
+function normalizeTodo(todo) {
+  return {
+    id: todo._id || todo.id,
+    text: todo.text,
+    done: Boolean(todo.done),
+    createdAt: new Date(todo.createdAt || 0).getTime(),
+  };
+}
 
 function renderTodos() {
   todoList.innerHTML = "";
